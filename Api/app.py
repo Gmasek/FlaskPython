@@ -1,4 +1,4 @@
-from flask import Flask , request ,jsonify 
+from flask import Flask , request ,jsonify ,Response
 from pymongo import MongoClient
 from dotenv import load_dotenv, dotenv_values
 import os
@@ -8,11 +8,7 @@ import datetime
 from flask_cors import CORS , cross_origin
 load_dotenv()
 app = Flask(__name__)
-cors = CORS(app)
-
-
-
-
+cors = CORS(app,resources={r"/*": {"origins": "*"}})
 url = os.getenv("MONGO_URL")
 client = MongoClient(url)
 db = client["users_db"]
@@ -27,8 +23,16 @@ def hello_world():
     return 'Hello World!'
 
 
-@app.route('/signup', methods=['POST'])
+
+@app.before_request
+def basic_authentication():
+    if request.method.lower() == 'options':
+        return Response()
+
+@app.route('/signup', methods=['POST',"OPTIONS"])
 def register():
+    if request.method.lower() == 'options':
+        return Response()
     user_data = request.get_json()
     user_data['password'] = hashlib.sha256(user_data["password"].encode("utf-8")).hexdigest()
     usr = users.find_one({"email": user_data["email"]})
@@ -39,8 +43,10 @@ def register():
         return jsonify({'msg': 'User already exists'}), 409
     
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['POST',"OPTIONS"])
 def login():
+    if request.method.lower() == 'options':
+        return Response()
     login_details = request.get_json()
     user_from_db = users.find_one({"email": login_details["email"]})
     if user_from_db:
@@ -52,9 +58,11 @@ def login():
         else:
             return jsonify({'msg': 'Invalid credentials'}), 401
     
-@app.route('/getuser',methods=['GET'])
+@app.route('/getuser',methods=['GET',"OPTIONS"])
 @jwt_required()
 def get_user():
+    if request.method.lower() == 'options':
+        return Response()
     current_user = get_jwt_identity()
     try:
         
@@ -71,4 +79,4 @@ def get_user():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
