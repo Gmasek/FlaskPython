@@ -57,6 +57,16 @@ def login():
             return jsonify(access_token=access_token,refresh_token=refresh_token)
         else:
             return jsonify({'msg': 'Invalid credentials'}), 401
+        
+@app.route("/refresh",methods=["POST","OPTIONS"])
+@jwt_required()
+def refresh():
+    if request.method.lower() == 'options':
+        return Response()
+    current_user = get_jwt_identity() 
+    user_db = users.find_one({"email": current_user})
+    refresh_token = create_refresh_token(identity=user_db["email"])
+    return jsonify(refresh_token=refresh_token),200
     
 @app.route('/getuser',methods=['GET',"OPTIONS"])
 @jwt_required()
