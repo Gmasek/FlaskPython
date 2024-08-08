@@ -8,7 +8,7 @@ from datetime import timedelta
 from flask_cors import CORS , cross_origin
 import asyncio
 import yfinance as yf
-from helpers.utils import getCurrentPrice,getIndicatorColnames
+from helpers.utils import getCurrentPrice,getIndicatorColnames , getIndicators
 
 load_dotenv()
 app = Flask(__name__)
@@ -174,7 +174,15 @@ def remove_asset():
 def get_ind_vals():
     if request.method.lower() == 'options':
         return Response()   
-    
-    
+    ticker = request.get_json()['ticker']
+    daysback = request.get_json()['daysback']
+    columns = request.get_json()['columns']
+    res = getIndicators(ticker,daysback,columns)
+    if res:
+        return jsonify({"message":"success","data":res}), 200
+    else:
+        return jsonify({'msg': 'Error getting data'}), 404
+        
+        
 if __name__ == '__main__':
     app.run(debug=True)

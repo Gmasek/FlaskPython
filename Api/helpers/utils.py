@@ -7,7 +7,7 @@ def getCurrentPrice(ticker:str):
     return yf.Ticker(ticker).info["currentPrice"]
 
 
-def getIndicators(ticker:str,columns:list,daysback = 30,colnames=False)->list:
+def getIndicators(ticker:str,columns:list,daysback = 30)->list:
     curr_date = datetime.now()
     daysback = int(daysback)
     window = daysback + ((daysback//7)*4) + 75
