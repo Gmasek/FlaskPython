@@ -4,8 +4,12 @@ from dotenv import load_dotenv, dotenv_values
 import os
 import hashlib
 from flask_jwt_extended import create_refresh_token,create_access_token , get_jwt_identity ,JWTManager , jwt_required
-import datetime 
+from datetime import timedelta
 from flask_cors import CORS , cross_origin
+import asyncio
+import yfinance as yf
+from helpers.utils import getCurrentPrice,getIndicatorColnames
+
 load_dotenv()
 app = Flask(__name__)
 cors = CORS(app,resources={r"/*": {"origins": "*"}})
@@ -14,9 +18,14 @@ client = MongoClient(url)
 db = client["users_db"]
 users = db["users"]
 jwt = JWTManager(app)
+assets = db["assets"]
+
 
 app.config['JWT_SECRET_KEY'] = 'Your_Secret_Key'
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = datetime.timedelta(days=1) 
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1) 
+
+
+
 
 @app.route('/')
 def hello_world():
@@ -86,7 +95,86 @@ def get_user():
     else:
         return jsonify({'msg': 'User not found'}), 404
     
+@app.route("/getcurrprice",methods=["Post","OPTIONS"])
+@jwt_required()
+async def  get_curr_price():
+    if request.method.lower() == 'options':
+        return Response()
+    ticker = request.get_json()['ticker']
+    try:
+        res =  getCurrentPrice(ticker)
+        return jsonify(res),200
+    except:
+        return jsonify({'msg': 'err'}), 404
+    
+    
+@app.route('/getlabels',methods=['GET',"OPTIONS"])
+@jwt_required()
+def get_all_indicator():
+    if request.method.lower() == 'options':
+        return Response()
+    try:
+        res =  getIndicatorColnames()
+        return jsonify(res),200
+    except:
+        return jsonify({'msg': 'err'}), 404
 
+@app.route('/addasset',methods=['POST',"OPTIONS"])
+@jwt_required()
+def add_asset():
+    if request.method.lower() == 'options':
+        return Response()
+    asset = request.get_json()
+    current_user = get_jwt_identity()
+    user_email = users.find_one({"email": current_user})['email']
+    asset_db = assets.find_one({"ticker": asset['ticker'],"user": user_email, 'qty':asset['qty']})
+    if  not asset_db:
+        assets.insert_one({"ticker": asset['ticker'],"user": user_email, 'qty':asset['qty'] })
+        return jsonify({'msg': 'Asset added successfully'}), 201
+    else:
+        return jsonify({'msg': 'Error'}), 409   
 
+@app.route("/getassets",methods=["GET","OPTIONS"])
+@jwt_required()
+def get_assets():
+    if request.method.lower() == 'options':
+        return Response()
+    current_user = get_jwt_identity()
+    user_email = users.find_one({"email": current_user})['email']
+    assets_db = assets.find({"user": user_email})
+    res = []
+    for asset in assets_db:
+        res.append(
+            {"ticker":asset["ticker"],
+             "qty":asset["qty"],
+             "value":getCurrentPrice(asset["ticker"])})
+    if assets_db:
+        return jsonify({"message":"success","data":res}), 200
+    else:
+        return jsonify({'msg': 'User not found'}), 404
+        
+
+@app.route("/removeasset",methods=["POST","OPTIONS"])
+@jwt_required
+def remove_asset():
+    if request.method.lower() == 'options': 
+        return Response()
+    owner = get_jwt_identity()
+    email = users.find_one({"email": owner})['email']
+    ticker = request.get_json()['ticker']
+    asset_db = assets.find_one({"ticker": ticker,"user": email})
+    if asset_db:
+        assets.delete_one({"ticker": ticker,"user": email})
+        return jsonify({'msg': 'Asset removed successfully'}), 200
+    else:
+        return jsonify({'msg': 'Asset not found'}), 404
+        
+@app.route("/getindvals",methods=["POST","OPTIONS"])
+@jwt_required
+def get_ind_vals():
+    if request.method.lower() == 'options':
+        return Response()   
+    
+    
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
